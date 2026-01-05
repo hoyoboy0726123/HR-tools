@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import streamlit as st
 from core.db_manager import DBManager
+from core.user_manager import UserManager
 
 st.set_page_config(
     page_title='HR Tool',
@@ -21,18 +22,128 @@ def init_databases():
 
 dbs = init_databases()
 
+# 初始化 UserManager
+if 'user_manager' not in st.session_state:
+    st.session_state.user_manager = UserManager()
+
+# 初始化用戶登入狀態
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+
+if 'user_info' not in st.session_state:
+    st.session_state.user_info = None
+
+# ========== 登入頁面 ==========
+if not st.session_state.logged_in:
+    st.title('👥 HR 資料處理工具')
+    st.markdown('### 🔐 請登入以開始使用')
+
+    st.info('💡 **簡易登入說明**：只需輸入您的 Email 即可登入，無需密碼。您的資料將與其他用戶隔離。')
+
+    # 登入表單
+    with st.form('login_form'):
+        email = st.text_input(
+            '📧 Email 地址',
+            placeholder='example@company.com',
+            help='請輸入您的工作 Email'
+        )
+
+        submit = st.form_submit_button('🚀 登入 / 註冊', use_container_width=True)
+
+        if submit:
+            if email:
+                result = st.session_state.user_manager.register_or_login(email)
+
+                if result['success']:
+                    st.session_state.logged_in = True
+                    st.session_state.user_info = {
+                        'user_id': result['user_id'],
+                        'email': result['email'],
+                        'email_hash': result['email_hash']
+                    }
+                    st.success(result['message'])
+                    st.rerun()
+                else:
+                    st.error(result['message'])
+            else:
+                st.warning('⚠️ 請輸入 Email 地址')
+
+    st.divider()
+
+    st.markdown("""
+    ### ℹ️ 關於此工具
+
+    本工具提供五大 HR 資料處理功能：
+    - 📊 **報表合併器** - 整合多份格式不同的報表
+    - 🧹 **資料清洗器** - 清理和標準化資料
+    - 👥 **員工查詢** - 整合查詢員工完整資訊
+    - ✅ **資格檢核器** - 自動檢核離職回任資格
+    - 🔔 **到期提醒** - 管理證照、合約等到期事項
+
+    ### 🔒 資料安全
+    - 所有資料儲存在系統中，但會依照您的 Email 進行隔離
+    - 您只能看到和管理自己的資料
+    - Email 經過加密處理，保護您的隱私
+    """)
+
+    st.stop()
+
+# ========== 主應用程式（已登入） ==========
+
+# 初始化 session state 來管理頁面導航
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = '首頁'
+
 st.sidebar.title('HR 資料處理工具')
 
-module = st.sidebar.radio('功能模組', [
-    '首頁',
+# 顯示用戶資訊
+if st.session_state.user_info:
+    st.sidebar.caption(f'👤 {st.session_state.user_info["email"]}')
+    if st.sidebar.button('🚪 登出', use_container_width=True):
+        # 清除登入狀態
+        st.session_state.logged_in = False
+        st.session_state.user_info = None
+        st.session_state.current_page = '首頁'
+        st.success('✅ 已成功登出')
+        st.rerun()
+
+st.sidebar.divider()
+
+# 首頁按鈕（獨立區域）
+if st.sidebar.button('🏠 返回首頁', use_container_width=True, type='primary' if st.session_state.current_page == '首頁' else 'secondary'):
+    st.session_state.current_page = '首頁'
+    st.rerun()
+
+st.sidebar.divider()
+
+# 功能模組選擇
+st.sidebar.subheader('功能模組')
+
+# 定義所有功能模組
+all_modules = [
     '報表合併器',
     '資料清洗器',
     '員工查詢',
     '資格檢核器',
     '到期提醒',
-])
+]
 
-if module == '首頁':
+# 使用按鈕來替代 radio，這樣可以不預選任何項目
+for module in all_modules:
+    is_selected = (st.session_state.current_page == module)
+    button_type = 'primary' if is_selected else 'secondary'
+
+    if st.sidebar.button(
+        module,
+        use_container_width=True,
+        type=button_type,
+        key=f'btn_{module}'
+    ):
+        st.session_state.current_page = module
+        st.rerun()
+
+# 根據當前頁面顯示內容
+if st.session_state.current_page == '首頁':
     st.title('📚 HR 資料處理工具 - 使用指南')
     st.write('歡迎使用 HR 資料處理工具平台！本指南將幫助您快速上手五大功能模組。')
 
@@ -808,22 +919,22 @@ else:
     A: 每個模組的「資料庫管理」分頁都有清空功能，可選擇性清空特定資料庫
     """)
 
-elif module == '報表合併器':
+elif st.session_state.current_page == '報表合併器':
     from modules import m1_report_merger
     m1_report_merger.render()
 
-elif module == '資料清洗器':
+elif st.session_state.current_page == '資料清洗器':
     from modules import m2_data_cleaner
     m2_data_cleaner.render()
 
-elif module == '員工查詢':
+elif st.session_state.current_page == '員工查詢':
     from modules import m4_employee_dashboard
     m4_employee_dashboard.render()
 
-elif module == '資格檢核器':
+elif st.session_state.current_page == '資格檢核器':
     from modules import m5_qualification_check
     m5_qualification_check.render()
 
-elif module == '到期提醒':
+elif st.session_state.current_page == '到期提醒':
     from modules import m6_reminder_system
     m6_reminder_system.render()
