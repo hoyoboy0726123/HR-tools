@@ -133,6 +133,12 @@ def verify_migration():
 
 
 if __name__ == '__main__':
+    import sys
+    import io
+
+    # 設置 UTF-8 編碼以支援 emoji
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
     print('🚀 開始資料庫遷移...\n')
     migrate_add_user_id_column()
     verify_migration()

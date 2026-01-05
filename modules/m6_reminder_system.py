@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
-from core.db_manager import DBManager
+from core.db_manager_multiuser import DBManagerMultiUser
 from utils.file_handler import FileHandler
 from datetime import datetime, timedelta
 
@@ -10,9 +10,12 @@ def render():
     st.title('到期提醒系統')
     st.markdown('試用期滿、合約到期等提醒管理')
 
-    # 使用 M6 模組專屬資料庫
-    db_reminders = DBManager('m6_reminders')
-    db_employees = DBManager('m6_reminders')  # M6 使用同一個資料庫，包含 employees 和 reminders 表
+    # 取得當前登入用戶的 user_id
+    user_id = st.session_state.user_info['user_id']
+
+    # 使用 M6 模組專屬資料庫（支援多用戶）
+    db_reminders = DBManagerMultiUser('m6_reminders', user_id=user_id)
+    db_employees = DBManagerMultiUser('m6_reminders', user_id=user_id)  # M6 使用同一個資料庫，包含 employees 和 reminders 表
 
     today = datetime.now().date()
     seven_days_later = (today + timedelta(days=7)).strftime('%Y-%m-%d')

@@ -12,15 +12,17 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 from typing import Dict, List, Any, Optional
-from core.db_manager import DBManager
+from core.db_manager_multiuser import DBManagerMultiUser
 
 
 class QualificationChecker:
     """資格檢核核心邏輯"""
 
-    def __init__(self):
+    def __init__(self, user_id=None):
         # 使用 M5 專用的單一資料庫 - 包含 4 個表 (employees, performance, training, separation)
-        self.db = DBManager('m5_qualification')
+        # 支援多用戶資料隔離
+        self.user_id = user_id
+        self.db = DBManagerMultiUser('m5_qualification', user_id=user_id)
         # 為了向後兼容和程式碼可讀性，保留這些別名
         self.db_employees = self.db
         self.db_performance = self.db
@@ -288,11 +290,14 @@ def render():
     st.header("✅ 資格檢核器")
     st.caption("離職回任資格檢核系統 - 規則式自動化檢核")
 
-    # 初始化 checker
-    if 'checker' not in st.session_state:
-        st.session_state.checker = QualificationChecker()
+    # 取得當前登入用戶的 user_id
+    user_id = st.session_state.user_info['user_id']
 
-    # 初始化檢核結果儲存（移到最外層，確保一定會初始化）
+    # 初始化 checker（支援多用戶）
+    if 'checker' not in st.session_state:
+        st.session_state.checker = QualificationChecker(user_id=user_id)
+
+    # 初始化檢核結果儲存（確保一定會初始化，避免 AttributeError）
     if 'check_results' not in st.session_state:
         st.session_state.check_results = {}
 

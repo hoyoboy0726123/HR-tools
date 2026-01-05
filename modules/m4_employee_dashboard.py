@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
-from core.db_manager import DBManager
+from core.db_manager_multiuser import DBManagerMultiUser
 from utils.file_handler import FileHandler
 from io import BytesIO
 from datetime import datetime
@@ -11,11 +11,14 @@ def render():
     st.title('員工資料查詢')
     st.markdown('查詢員工基本資料、績效歷程、訓練紀錄')
 
-    # 使用 M4 模組專屬資料庫
-    db_employees = DBManager('m4_employees')
-    db_performance = DBManager('m4_performance')
-    db_training = DBManager('m4_training')
-    db_separation = DBManager('m4_separation')
+    # 取得當前登入用戶的 user_id
+    user_id = st.session_state.user_info['user_id']
+
+    # 使用 M4 模組專屬資料庫（支援多用戶）
+    db_employees = DBManagerMultiUser('m4_employees', user_id=user_id)
+    db_performance = DBManagerMultiUser('m4_performance', user_id=user_id)
+    db_training = DBManagerMultiUser('m4_training', user_id=user_id)
+    db_separation = DBManagerMultiUser('m4_separation', user_id=user_id)
 
     # 初始化查詢結果累積
     if 'accumulated_results' not in st.session_state:

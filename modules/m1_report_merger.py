@@ -2,7 +2,7 @@
 import streamlit as st
 import pandas as pd
 from core.column_matcher import ColumnMatcher
-from core.db_manager import DBManager
+from core.db_manager_multiuser import DBManagerMultiUser
 from utils.file_handler import FileHandler
 from datetime import datetime
 from io import BytesIO
@@ -12,8 +12,11 @@ def render():
     st.title('報表合併器')
     st.markdown('整合多份欄位不統一的報表，智慧對齊欄位')
 
-    # 初始化範本資料庫
-    template_db = DBManager('workflow_templates')
+    # 取得當前登入用戶的 user_id
+    user_id = st.session_state.user_info['user_id']
+
+    # 初始化範本資料庫（支援多用戶）
+    template_db = DBManagerMultiUser('workflow_templates', user_id=user_id)
 
     # ========== 範本管理區 ==========
     st.divider()
