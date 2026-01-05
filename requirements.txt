@@ -1,0 +1,13 @@
+# GUI
+streamlit>=1.28.0
+
+# 資料處理
+pandas>=2.0.0
+openpyxl>=3.1.0
+xlrd>=2.0.0
+
+# AI 整合 (選用)
+google-generativeai>=0.3.0
+
+# 其他工具
+python-dateutil>=2.8.0
