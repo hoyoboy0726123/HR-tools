@@ -292,6 +292,13 @@ def render():
     if 'checker' not in st.session_state:
         st.session_state.checker = QualificationChecker()
 
+    # 初始化檢核結果儲存（移到最外層，確保一定會初始化）
+    if 'check_results' not in st.session_state:
+        st.session_state.check_results = {}
+
+    if 'show_batch_export' not in st.session_state:
+        st.session_state.show_batch_export = False
+
     # Tab 分頁
     tab1, tab2, tab3 = st.tabs(["📋 資格檢核", "📥 資料匯入", "🗄️ 資料庫管理"])
 
@@ -311,10 +318,6 @@ def render():
             st.warning("⚠️ 資料庫中尚無員工資料，請先到「資料匯入」頁面匯入測試資料")
         else:
             st.info(f"📊 資料庫中共有 {len(all_employees)} 位員工記錄")
-
-            # 初始化檢核結果儲存
-            if 'check_results' not in st.session_state:
-                st.session_state.check_results = {}
 
             # 選擇檢核模式
             check_mode = st.radio(
