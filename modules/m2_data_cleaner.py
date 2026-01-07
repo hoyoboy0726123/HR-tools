@@ -313,8 +313,12 @@ def render():
                             )
 
                             if result['success']:
+                                st.toast(f"✅ {result['message']}")
                                 st.success(result['message'])
                                 st.balloons()
+                                import time
+                                time.sleep(1)
+                                st.rerun()
                             else:
                                 st.error(result['message'])
 

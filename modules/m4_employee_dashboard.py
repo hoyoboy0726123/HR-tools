@@ -14,6 +14,10 @@ def render():
     # 取得當前登入用戶的 user_id
     user_id = st.session_state.user_info['user_id']
 
+    # 再次確認資料庫結構（確保遷移已執行）
+    from core.db_migration import migrate_add_user_id_column
+    migrate_add_user_id_column()
+
     # 使用 M4 模組專屬資料庫（支援多用戶）
     db_employees = DBManagerMultiUser('m4_employees', user_id=user_id)
     db_performance = DBManagerMultiUser('m4_performance', user_id=user_id)

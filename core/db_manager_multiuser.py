@@ -425,11 +425,20 @@ class DBManagerMultiUser(BaseDBManager):
             conn = self._get_connection()
             cursor = conn.cursor()
 
+            # 確保 uid 存在
             uid = user_id if user_id is not None else self.user_id
+            
+            # 如果 uid 還是 None，嘗試從 session_state 拿
+            if uid is None:
+                try:
+                    import streamlit as st
+                    if 'user_info' in st.session_state:
+                        uid = st.session_state.user_info.get('user_id')
+                except:
+                    pass
 
             config_json = json.dumps(config, ensure_ascii=False, indent=2)
 
-            # 修改 UNIQUE 條件以包含 user_id
             cursor.execute("""
                 INSERT INTO workflow_templates (module, template_name, description, config_json, user_id, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?)
@@ -445,6 +454,7 @@ class DBManagerMultiUser(BaseDBManager):
 
             return {'success': True, 'message': f'範本「{template_name}」已儲存'}
         except Exception as e:
+            print(f"❌ Save Template Error: {str(e)}")
             return {'success': False, 'message': f'儲存失敗: {str(e)}'}
 
     def get_all_templates(self, module: str, user_id=None):
@@ -454,12 +464,21 @@ class DBManagerMultiUser(BaseDBManager):
             cursor = conn.cursor()
 
             uid = user_id if user_id is not None else self.user_id
+            
+            # 如果 uid 為 None 且在 Streamlit 環境，嘗試自動補齊
+            if uid is None:
+                try:
+                    import streamlit as st
+                    if 'user_info' in st.session_state:
+                        uid = st.session_state.user_info.get('user_id')
+                except:
+                    pass
 
             if uid is not None:
                 cursor.execute("""
                     SELECT id, template_name, description, created_at, updated_at
                     FROM workflow_templates
-                    WHERE module = ? AND user_id = ?
+                    WHERE module = ? AND (user_id = ? OR user_id IS NULL)
                     ORDER BY updated_at DESC
                 """, (module, uid))
             else:
@@ -493,12 +512,20 @@ class DBManagerMultiUser(BaseDBManager):
             cursor = conn.cursor()
 
             uid = user_id if user_id is not None else self.user_id
+            
+            if uid is None:
+                try:
+                    import streamlit as st
+                    if 'user_info' in st.session_state:
+                        uid = st.session_state.user_info.get('user_id')
+                except:
+                    pass
 
             if uid is not None:
                 cursor.execute("""
                     SELECT id, template_name, description, config_json, created_at, updated_at
                     FROM workflow_templates
-                    WHERE module = ? AND template_name = ? AND user_id = ?
+                    WHERE module = ? AND template_name = ? AND (user_id = ? OR user_id IS NULL)
                 """, (module, template_name, uid))
             else:
                 cursor.execute("""

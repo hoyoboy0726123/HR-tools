@@ -2,37 +2,22 @@
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
 venv/
-env/
-ENV/
-.venv
+.env
+
+# SQLite Databases
+*.db
+data/*.db
 
 # Streamlit
 .streamlit/
+static/
 
-# Database files (do not commit user data)
-data/*.db
-*.db
-
-# Config files with sensitive data
-config/api_config.json
-
-# IDE
+# IDEs
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
+.claude/
 
 # OS
 .DS_Store
 Thumbs.db
-
-# Logs
-*.log
-
-# Temporary files
-*.tmp
-*.bak

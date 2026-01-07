@@ -2,16 +2,13 @@
 import streamlit as st
 from core.db_manager import DBManager
 from core.user_manager import UserManager
-
-st.set_page_config(
-    page_title='HR Tool',
-    page_icon='👥',
-    layout='wide'
-)
+from core.db_migration import migrate_add_user_id_column
 
 @st.cache_resource
 def init_databases():
     """Initialize all separate databases"""
+    # 確保資料庫檔案存在後執行遷移
+    migrate_add_user_id_column()
     return {
         'employees': DBManager('employees'),
         'reminders': DBManager('reminders'),

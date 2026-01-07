@@ -15,6 +15,10 @@ def render():
     # 取得當前登入用戶的 user_id
     user_id = st.session_state.user_info['user_id']
 
+    # 初始化 uploader_id 用於清除上傳元件
+    if 'uploader_id' not in st.session_state:
+        st.session_state.uploader_id = 0
+
     # 初始化範本資料庫（支援多用戶）
     template_db = DBManagerMultiUser('workflow_templates', user_id=user_id)
 
@@ -25,6 +29,18 @@ def render():
 
         with tab_new:
             st.info('選擇此選項以建立新的合併流程（不使用範本）')
+            if 'loaded_template' in st.session_state and st.session_state.loaded_template is not None:
+                if st.button('✨ 清除當前範本，開始新建流程', type='primary'):
+                    st.session_state.loaded_template = None
+                    # 遞增 uploader_id 以清除檔案
+                    st.session_state.uploader_id += 1
+                    # 同時清除合併狀態
+                    if 'merge_executed' in st.session_state:
+                        st.session_state.merge_executed = False
+                    st.success('已切換回新建流程模式，檔案已清除')
+                    st.rerun()
+            else:
+                st.success('✅ 目前已處於新建流程模式')
 
         with tab_load:
             templates = template_db.get_all_templates('M1')
@@ -43,8 +59,12 @@ def render():
                             full_template = template_db.load_template('M1', template['template_name'])
                             if full_template:
                                 st.session_state.loaded_template = full_template
+                                # 遞增 uploader_id 以清除檔案
+                                st.session_state.uploader_id += 1
+                                # 清除先前的合併結果
+                                if 'merge_executed' in st.session_state:
+                                    st.session_state.merge_executed = False
                                 st.success(f"✅ 已載入範本「{template['template_name']}」")
-                                st.info('⬇️ 請向下滾動至「步驟 1」上傳檔案，系統將自動套用範本設定')
                                 st.rerun()
             else:
                 st.info('目前沒有已儲存的範本')
@@ -70,13 +90,32 @@ def render():
             else:
                 st.info('目前沒有範本可管理')
 
+    # 檢查是否有載入的範本並立即顯示
+    has_template = 'loaded_template' in st.session_state and st.session_state.loaded_template is not None
+
+    if has_template:
+        template_info = st.session_state.loaded_template
+        template_mapping = template_info['config'].get('column_mapping', {})
+        mapping_count = len(set(template_mapping.values()))
+        
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            st.info(f"📁 已載入範本：**{template_info['template_name']}** | {template_info.get('description', '')} | 包含 {mapping_count} 個欄位對應")
+        with col2:
+            if st.button('❌ 取消使用', help='回到新建流程模式'):
+                st.session_state.loaded_template = None
+                st.session_state.uploader_id += 1
+                if 'merge_executed' in st.session_state:
+                    st.session_state.merge_executed = False
+                st.rerun()
+
     st.divider()
     st.subheader('步驟 1: 上傳報表檔案')
     uploaded_files = st.file_uploader(
         '上傳 Excel 或 CSV 檔案 (可多選)',
         type=['xlsx', 'xls', 'csv'],
         accept_multiple_files=True,
-        key='file_uploader'
+        key=f"file_uploader_{st.session_state.uploader_id}"
     )
 
     if not uploaded_files:
@@ -109,15 +148,12 @@ def render():
             st.caption('💡 點擊右上角全螢幕按鈕可查看完整資料')
             st.dataframe(df, width='stretch')
 
-    # 檢查是否有載入的範本
-    has_template = 'loaded_template' in st.session_state and st.session_state.loaded_template is not None
-
-    if has_template:
-        template_info = st.session_state.loaded_template
-        st.info(f"📁 已載入範本：**{template_info['template_name']}** | {template_info.get('description', '')}")
-
     st.divider()
     st.subheader('步驟 2: 智慧欄位對齊')
+
+    # 初始化手動拆分紀錄
+    if 'split_columns' not in st.session_state:
+        st.session_state.split_columns = set()
 
     # 收集所有欄位
     all_columns = {}
@@ -157,6 +193,12 @@ def render():
         all_col_list = list(all_columns.keys())
         processed = set()
 
+        # 優先處理被使用者拆出的欄位，確保它們不進入自動群組
+        for col in all_col_list:
+            if col in st.session_state.split_columns:
+                column_groups[col] = [col]
+                processed.add(col)
+
         for col in all_col_list:
             if col in processed:
                 continue
@@ -174,7 +216,7 @@ def render():
             column_groups[standard_name] = group
 
         st.write('**系統自動識別的欄位對應關係：**')
-        st.info('請確認以下欄位對應是否正確，您可以修改「統一欄位名稱」')
+        st.info('請確認以下欄位對應是否正確，您可以修改「統一欄位名稱」。若歸類錯誤，請點擊「❌ 拆分此群組」。')
 
         # 收集所有唯一的欄位名稱（用於下拉選單）
         all_unique_cols = sorted(set(all_columns.keys()))
@@ -189,16 +231,28 @@ def render():
                     for col in similar_cols:
                         st.caption(f'  • `{col}` 來自: {", ".join(all_columns[col])}')
 
-                    st.text_input(
-                        '統一欄位名稱',
-                        value=standard_name,
-                        key=f'unified_name_{group_idx}'
-                    )
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.text_input(
+                            '統一欄位名稱',
+                            value=standard_name,
+                            key=f'unified_name_{group_idx}'
+                        )
+                    with col2:
+                        st.write("") # 調整垂直對齊
+                        st.write("")
+                        if st.button('❌ 拆分此群組', key=f'split_btn_{group_idx}'):
+                            for c in similar_cols:
+                                st.session_state.split_columns.add(c)
+                            st.rerun()
                 group_idx += 1
             else:
                 # 顯示單獨欄位，讓用戶可以選擇對應到哪個欄位
                 col_name = similar_cols[0]
-                with st.expander(f'📌 單獨欄位: {col_name}', expanded=False):
+                is_split = col_name in st.session_state.split_columns
+                expander_label = f'📌 手動對應: {col_name}' if is_split else f'📌 單獨欄位: {col_name}'
+                
+                with st.expander(expander_label, expanded=is_split):
                     st.caption(f'來自: {", ".join(all_columns[col_name])}')
 
                     # 提供選項：保持原樣或對應到其他欄位
@@ -218,6 +272,11 @@ def render():
                         # 使用隱藏的方式儲存原欄位名稱
                         if f'unified_name_{group_idx}' not in st.session_state:
                             st.session_state[f'unified_name_{group_idx}'] = col_name
+                    
+                    if is_split:
+                        if st.button('🔄 恢復自動群組', key=f'restore_btn_{group_idx}'):
+                            st.session_state.split_columns.remove(col_name)
+                            st.rerun()
                 group_idx += 1
 
     st.divider()
@@ -315,138 +374,113 @@ def render():
                 group_idx = 0
                 for standard_name, similar_cols in column_groups.items():
                     if len(similar_cols) > 1:
-                        # 有相似欄位群組，從 session_state 讀取用戶輸入
                         unified_name = st.session_state.get(f'unified_name_{group_idx}', standard_name)
                     else:
-                        # 單獨欄位，檢查用戶選擇的處理方式
                         map_option = st.session_state.get(f'map_option_{group_idx}', '保持原欄位名稱')
                         if map_option == '對應到其他欄位':
                             unified_name = st.session_state.get(f'unified_name_{group_idx}', standard_name)
                         else:
                             unified_name = standard_name
-
                     group_idx += 1
-
                     for col in similar_cols:
                         unified_mapping[col] = unified_name
 
                 # 即時處理：重命名並清理所有 DataFrame
                 cleaned_dfs = []
                 for filename, df in dataframes.items():
-                    # 建立新的欄位名稱列表和對應的欄位索引
                     new_columns = []
                     col_positions = []
                     seen = set()
-
                     for idx, col in enumerate(df.columns):
-                        # 取得統一名稱
                         unified_col = unified_mapping.get(col, col)
-
-                        # 只保留第一次出現的欄位名稱
                         if unified_col not in seen:
                             new_columns.append(unified_col)
                             col_positions.append(idx)
                             seen.add(unified_col)
-
-                    # 使用 iloc 根據位置索引選擇欄位，避免列名重複問題
                     df_clean = df.iloc[:, col_positions].copy()
                     df_clean.columns = new_columns
-                    df_clean = df_clean.reset_index(drop=True)
-
-                    cleaned_dfs.append(df_clean)
+                    cleaned_dfs.append(df_clean.reset_index(drop=True))
 
                 # 執行合併
                 if merge_method == '垂直堆疊':
                     result_df = pd.concat(cleaned_dfs, ignore_index=True, sort=False)
-
                 elif merge_method == '依 Key 合併':
                     result_df = cleaned_dfs[0].copy()
-
                     for df in cleaned_dfs[1:]:
                         if merge_key not in result_df.columns or merge_key not in df.columns:
                             st.error(f'合併鍵「{merge_key}」在某些檔案中不存在！')
                             st.stop()
-
-                        result_df = pd.merge(
-                            result_df,
-                            df,
-                            on=merge_key,
-                            how=merge_how,
-                            suffixes=('', '_dup')
-                        )
-
-                    # 移除重複欄位
+                        result_df = pd.merge(result_df, df, on=merge_key, how=merge_how, suffixes=('', '_dup'))
                     dup_cols = [col for col in result_df.columns if col.endswith('_dup')]
                     if dup_cols:
-                        st.info(f'移除重複欄位: {", ".join(dup_cols)}')
                         result_df = result_df.drop(columns=dup_cols)
 
-                # 移除重複資料
                 if remove_duplicates:
-                    before_count = len(result_df)
                     result_df = result_df.drop_duplicates(keep='first')
-                    after_count = len(result_df)
-                    if before_count > after_count:
-                        st.info(f'已移除 {before_count - after_count} 筆重複資料')
 
-                st.success(f'✅ 合併完成！共 {len(result_df)} 筆資料，{len(result_df.columns)} 個欄位')
-
-                st.write('**合併結果預覽:**')
-                st.caption('💡 點擊右上角全螢幕按鈕可查看完整資料')
-                st.dataframe(result_df, width='stretch')
-
-                # 匯出 Excel
-                output = BytesIO()
-                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    result_df.to_excel(writer, index=False, sheet_name='合併結果')
-                output.seek(0)
-
-                st.download_button(
-                    label='📥 下載合併結果（Excel）',
-                    data=output,
-                    file_name=f'merged_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx',
-                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    width='stretch'
-                )
-
-                # ========== 儲存為範本 ==========
-                st.divider()
-                st.subheader('💾 儲存此流程為範本')
-                st.info('儲存後，下次遇到相同格式的報表時可以直接套用，無需重新設定')
-
-                with st.form('save_template_form'):
-                    template_name = st.text_input('範本名稱', placeholder='例如：月報整合流程')
-                    template_desc = st.text_area('範本說明（選填）', placeholder='簡短描述此範本的用途')
-
-                    submitted = st.form_submit_button('💾 儲存範本', type='primary')
-
-                    if submitted:
-                        if not template_name.strip():
-                            st.error('請輸入範本名稱')
-                        else:
-                            # 建立範本設定
-                            template_config = {
-                                'column_mapping': unified_mapping,
-                                'merge_method': merge_method,
-                                'merge_key': merge_key if merge_method == '依 Key 合併' else None,
-                                'merge_how': merge_how if merge_method == '依 Key 合併' else None,
-                                'remove_duplicates': remove_duplicates
-                            }
-
-                            result = template_db.save_template(
-                                module='M1',
-                                template_name=template_name.strip(),
-                                config=template_config,
-                                description=template_desc.strip() if template_desc.strip() else None
-                            )
-
-                            if result['success']:
-                                st.success(result['message'])
-                                st.balloons()
-                            else:
-                                st.error(result['message'])
+                # 將結果與設定存入 session_state 以供區塊外使用
+                st.session_state.last_merge_result = result_df
+                st.session_state.last_merge_config = {
+                    'column_mapping': unified_mapping,
+                    'merge_method': merge_method,
+                    'merge_key': merge_key if merge_method == '依 Key 合併' else None,
+                    'merge_how': merge_how if merge_method == '依 Key 合併' else None,
+                    'remove_duplicates': remove_duplicates
+                }
+                st.session_state.merge_executed = True
+                st.rerun()
 
         except Exception as e:
             st.error(f'合併失敗: {str(e)}')
-            import traceback
-            st.code(traceback.format_exc())
+
+    # ========== 合併結果與儲存範本區塊 (在按鈕外) ==========
+    if st.session_state.get('merge_executed'):
+        result_df = st.session_state.last_merge_result
+        st.success(f'✅ 合併完成！共 {len(result_df)} 筆資料，{len(result_df.columns)} 個欄位')
+        st.write('**合併結果預覽:**')
+        st.dataframe(result_df, width='stretch')
+
+        # 匯出 Excel
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            result_df.to_excel(writer, index=False, sheet_name='合併結果')
+        output.seek(0)
+
+        st.download_button(
+            label='📥 下載合併結果（Excel）',
+            data=output,
+            file_name=f'merged_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx',
+            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            width='stretch'
+        )
+
+        st.divider()
+        st.subheader('💾 儲存此流程為範本')
+        st.info('儲存後，下次遇到相同格式的報表時可以直接套用')
+
+        with st.form('save_template_form'):
+            template_name = st.text_input('範本名稱', placeholder='例如：月報整合流程')
+            template_desc = st.text_area('範本說明（選填）', placeholder='簡短描述此範本的用途')
+            submitted = st.form_submit_button('💾 儲存範本', type='primary')
+
+            if submitted:
+                if not template_name.strip():
+                    st.error('請輸入範本名稱')
+                else:
+                    result = template_db.save_template(
+                        module='M1',
+                        template_name=template_name.strip(),
+                        config=st.session_state.last_merge_config,
+                        description=template_desc.strip() if template_desc.strip() else None
+                    )
+                    if result['success']:
+                        st.toast(f"✅ {result['message']}")
+                        st.success(result['message'])
+                        st.balloons()
+                        # 延遲一下下讓使用者看到氣球，然後重新整理頁面
+                        import time
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error(result['message'])
+

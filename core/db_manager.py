@@ -31,11 +31,12 @@ class DBManager:
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        # Define standard table schemas
+        # Define standard table schemas (Added user_id for multi-user support)
         employees_schema = """CREATE TABLE IF NOT EXISTS employees (
             emp_id TEXT PRIMARY KEY, name TEXT NOT NULL,
             id_number_hash TEXT, department TEXT, hire_date DATE,
             status TEXT DEFAULT 'active',
+            user_id INTEGER,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"""
 
         performance_schema = """CREATE TABLE IF NOT EXISTS performance (
@@ -44,6 +45,7 @@ class DBManager:
             year INTEGER,
             rating TEXT,
             score REAL,
+            user_id INTEGER,
             updated_at TIMESTAMP)"""
 
         training_schema = """CREATE TABLE IF NOT EXISTS training (
@@ -53,6 +55,7 @@ class DBManager:
             course_type TEXT,
             hours REAL,
             completion_date DATE,
+            user_id INTEGER,
             updated_at TIMESTAMP)"""
 
         separation_schema = """CREATE TABLE IF NOT EXISTS separation (
@@ -62,6 +65,7 @@ class DBManager:
             separation_type TEXT,
             reason TEXT,
             blacklist BOOLEAN DEFAULT FALSE,
+            user_id INTEGER,
             updated_at TIMESTAMP)"""
 
         reminders_schema = """CREATE TABLE IF NOT EXISTS reminders (
@@ -74,18 +78,20 @@ class DBManager:
             notes TEXT,
             status TEXT DEFAULT 'pending',
             completed_date DATE,
+            user_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"""
 
-        # Workflow templates schema for M1 & M2
+        # Workflow templates schema for M1 & M2 (Multi-user support)
         templates_schema = """CREATE TABLE IF NOT EXISTS workflow_templates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             module TEXT NOT NULL,
             template_name TEXT NOT NULL,
             description TEXT,
             config_json TEXT NOT NULL,
+            user_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(module, template_name))"""
+            UNIQUE(module, template_name, user_id))"""
 
         # Map database names to schemas
         # Support both legacy names and new module-specific names

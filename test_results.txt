@@ -1,0 +1,9 @@
+================================================================================
+Traceback (most recent call last):
+  File "C:\Users\GU605_PR_MZ\Downloads\HR\hr_data_tool\test_independent_databases.py", line 11, in <module>
+    print("\u6e2c\u8a66\u7368\u7acb\u8cc7\u6599\u5eab\u67b6\u69cb")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode characters in position 0-8: character maps to <undefined>
